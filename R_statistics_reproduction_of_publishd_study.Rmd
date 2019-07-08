@@ -1,0 +1,341 @@
+---
+title: "Stats Challenge"
+author: "Simon and Doris"
+date: "May 30, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+library(gdata)
+
+```
+
+# Data and research question
+
+Summary:
+The authors studied the influence of weaning age in cats regarding different characteristics, such as shyness towards people or objects, aggressiveness, or stereotypical behavior.
+For this, they published questionnaires online for owners to answer.
+It is a descriptive research design (survey), with no controls or treatment.
+They grouped cats together by breed or breed type and analyzed the data, correcting for environmental influences such as age, gender, whether the cats were neutered, and whether they went outdoors.
+
+Our approach:
+reproduce analysis of Table 1 with the test used in the publication, redo with different statistical test
+
+Original article: https://www.nature.com/articles/s41598-017-11173-5
+Data: https://figshare.com/articles/Salonen_et_al_Breed_differences_of_heritable_behaviour_traits_in_cats_-_data/8143835
+
+
+```{r }
+data <- read.csv(file="publisheddata-scientificreports.csv", header=TRUE, sep=";")
+
+```
+
+Get an overview of the data
+
+```{r}
+count(data)
+
+histrv<-hist(data$Age, main="Age distribution of cats",  breaks=25)
+hist_cats <- histrv$counts #give numbers of how many per break (year)
+
+median(data$Age)
+mean(data$Age)
+
+hist(data$Gender)
+breed_count <- count(data, Breed_group)
+ggplot(breed_count, aes(x=Breed_group, y=n))+
+geom_bar(stat = "identity", color="grey")
+
+weaning_count <- count(data, Weaning_age)
+ggplot(weaning_count, aes(x=Weaning_age, y=n))+
+geom_bar(stat = "identity", color="grey")
+
+aggr_count <- count(data, Aggression_owner)
+ggplot(aggr_count, aes(x=Aggression_owner, y=n))+
+geom_bar(stat = "identity", color="grey")
+
+```
+
+Describe presence or absence of aggression as binary value
+
+```{r}
+data$aggression_bin <- rep(0, count(data))
+
+data$aggression_bin[data$Aggression_owner >1]=1
+aggr_count_bin <- count(data, aggression_bin)
+
+#aggression towards owner, all
+p1 <- ggplot(aggr_count, aes(x=Aggression_owner, y = n))+
+ geom_bar(stat = "identity", fill = c("#32CD32", "red", "red", "red", "red"))+
+ scale_x_continuous(breaks = c(1,2,3,4,5),
+                    labels = c("no aggression","a little","moderately","a lot",
+                               "very much") )+
+ ggtitle(" ")+
+ xlab("Aggression level")+
+ ylab("Number of cats")+
+ theme_bw()
+
+#aggression towards owner, bin
+p2 <- ggplot(aggr_count_bin, aes(x=aggression_bin, y = n))+
+ geom_bar(stat = "identity", fill = c("#32CD32", "red"))+
+ scale_x_continuous(breaks = c(0,1),
+                    labels = c("no aggression","aggression") )+
+ ggtitle(" ")+
+ xlab("Aggression level")+
+ ylab("Number of cats")+
+
+ theme_bw()
+
+library("gridExtra")
+
+grid.arrange(p1, p2, ncol = 2, top = "Aggression towards family members")
+
+
+```
+
+Investigate different parameters vs. aggression
+
+```{r}
+#aggression vs age
+hist_cats #individuals per age group
+
+#Weaning age
+table_WA_OA=table(data$Weaning_age, data$aggression_bin)
+table_WA_OA
+#plot(table_WA_OA, main="Aggression towards owner")
+test_w <- chisq.test(table_WA_OA)
+test_row1=c(test_w$statistic[1], test_w$p.value, test_w$parameter[1])
+test_row1
+
+#gender
+table_G_OA=table(data$Gender, data$aggression_bin)
+table_G_OA
+#plot(table_G_OA, main="Aggression towards owner")
+test_G <- chisq.test(table_G_OA)
+test_row2=c(test_G$statistic[1], test_G$p.value, test_G$parameter[1])
+test_row2
+
+#age --> should not be done with chi square --> ANOVA
+table_A_OA=table(data$Age, data$aggression_bin)
+table_A_OA
+#plot(table_A_OA, main="Aggression towards owner")
+test_A <- chisq.test(table_A_OA)
+test_row3=c(test_A$statistic[1], test_A$p.value, test_A$parameter[1])
+test_row3
+
+data$age_bin <- rep(0, count(data))
+data$age_bin[data$Age >11.983]=1
+
+table_Abin_OA=table(data$age_bin, data$aggression_bin)
+table_Abin_OA
+#plot(table_Abin_OA, main="Aggression towards owner")
+test_Abin <- chisq.test(table_Abin_OA)
+test_row3a=c(test_Abin$statistic[1], test_Abin$p.value, test_Abin$parameter[1])
+test_row3a
+
+#Hormonal status
+table_N_OA=table(data$Neuter_status, data$aggression_bin)
+table_N_OA
+#plot(table_N_OA, main="Aggression towards owner")
+test_N <- chisq.test(table_N_OA)
+test_row4=c(test_N$statistic[1], test_N$p.value, test_N$parameter[1])
+test_row4
+
+#Breed
+table_B_OA=table(data$Breed_group, data$aggression_bin)
+table_B_OA
+#plot(table_B_OA, main="Aggression towards owner")
+test_B <- chisq.test(table_B_OA)
+test_row5=c(test_B$statistic[1], test_B$p.value, test_B$parameter[1])
+test_row5
+
+#Other cats
+table_cat_OA=table(data$Other_cats, data$aggression_bin)
+table_cat_OA
+#plot(table_cat_OA, main="Aggression towards owner")
+test_cat <- chisq.test(table_cat_OA)
+test_row6=c(test_cat$statistic[1], test_cat$p.value, test_cat$parameter[1])
+test_row6
+
+
+#Extraversion
+table_E_OA=table(data$Activity_level, data$aggression_bin)
+table_E_OA
+#plot(table_E_OA, main="Aggression towards owner")
+test_E <- chisq.test(table_E_OA)
+test_row7=c(test_E$statistic[1], test_E$p.value, test_E$parameter[1])
+test_row7
+
+#Shyness
+table_s_OA=table(data$Shyness_component, data$aggression_bin)
+table_s_OA
+#plot(table_s_OA, main="Aggression towards owner")
+test_s <- chisq.test(table_s_OA)
+test_row8=c(test_s$statistic[1], test_s$p.value, test_s$parameter[1])
+test_row8
+
+#outdoors
+table_od_OA=table(data$Outdoors, data$aggression_bin)
+table_od_OA
+#plot(table_Od_OA, main="Aggression towards owner")
+test_od <- chisq.test(table_od_OA)
+test_row9=c(test_od$statistic[1], test_od$p.value, test_od$parameter[1])
+test_row9
+
+check= data.frame("Weaning_age"=test_row1, "Sex"=test_row2, "Age"=test_row3, "Hormonal_status"=test_row4, "Breed"=test_row5, "Access_to_outdoors"=test_row9, "Other_cats"=test_row6, "Shyness"=test_row8, "Extraversion"=test_row7)
+check <- t(check)
+check <- as.data.frame(check)
+
+names(check)[names(check) == "V2"] <- "p_value"
+check
+```
+#State the null-hypothesis and the alternative hypothesis
+H0: weaning age and aggression towards owner are independent
+H1: they are not independent
+
+#Corrections in tests
+Do Wilcoxon-test for age and shyness component
+
+```{r}
+#for age
+shapiro.test(sample(data$Age, 5000, replace=FALSE))
+#not normally distributed
+
+log_age= log2(data$Age)
+
+hist(log_age)
+
+#still not normal after log-transformation
+
+wilcox.test(data$Age ~ data$aggression_bin)
+
+boxplot(data$Age ~ data$aggression_bin, ylab="Age", xlab= "Aggression", col="light blue",data = data, outcol = "red")
+ggplot(data, aes(x=data$aggression_bin, y=data$Age, group=data$aggression_bin))+geom_violin()+ggtitle("Aggression and Age") +
+xlab("Aggression")+ylab("Age")
+
+
+#shyness component
+library(ggplot2)
+
+shapiro.test(sample(data$Shyness_component, 5000, replace=FALSE))
+hist(data$Shyness_component)
+
+wilcox.test(data$Shyness_component ~ data$aggression_bin)
+
+boxplot(data$Shyness_component ~ data$aggression_bin, ylab="Age", xlab= "Shyness", col="light blue",data = data, outcol = "red")
+
+ggplot(data, aes(x=data$aggression_bin, y=data$Shyness_component, group=data$aggression_bin,))+geom_violin()+ggtitle("Aggression and Shyness component") + xlab("Aggression") + ylab("Shyness component")
+
+```
+
+#groups by weaning age
+
+```{r}
+#table 2
+
+group_1 <- data[(data$Weaning_age ==1|data$Weaning_age ==4), ]
+
+table_group_1 <- table(group_1$Weaning_age, group_1$aggression_bin)
+test_group_1 <- chisq.test(table_group_1)
+test_group_1
+
+group_2 <- data[(data$Weaning_age ==2|data$Weaning_age ==4), ]
+
+table_group_2 <- table(group_2$Weaning_age, group_2$aggression_bin)
+test_group_2 <- chisq.test(table_group_2)
+test_group_2
+
+group_3 <- data[(data$Weaning_age ==3|data$Weaning_age ==4), ]
+
+table_group_3 <- table(group_3$Weaning_age, group_3$aggression_bin)
+test_group_3 <- chisq.test(table_group_3)
+test_group_3
+
+group_4 <- data[(data$Weaning_age ==5|data$Weaning_age ==4), ]
+
+table_group_4 <- table(group_4$Weaning_age, group_4$aggression_bin)
+test_group_4 <- chisq.test(table_group_4)
+test_group_4
+
+group_5 <- data[(data$Weaning_age <5|data$Weaning_age ==5), ]
+
+table_group_5 <- table(group_5$Weaning_age, group_5$aggression_bin)
+test_group_5 <- chisq.test(table_group_5)
+test_group_5
+
+group_6 <- data[(data$Weaning_age > 5|data$Weaning_age <=5), ]
+
+table_group_6 <- table(group_6$Weaning_age, group_6$aggression_bin)
+test_group_6 <- chisq.test(table_group_6)
+test_group_6
+
+```
+
+#Power analysis
+
+< 0.1 = trivial effect
+0.1 - 0.3 = small effect
+0.3 - 0.5 = moderate effect
+> 0.5 = large difference effect
+
+Usage
+
+pwr.chisq.test(w = NULL, N = NULL, df = NULL, sig.level = 0.05, power = NULL)
+
+Arguments
+
+w: Effect size
+N: Total number of observations
+df:degree of freedom (depends on the chosen test)
+sig.level: Significance level (Type I error probability) -> rejection of a true null hypothesis ("false positive")
+power: Power of test (1 minus Type II error probability) -> failure of rejecting a false null hypothesis (also known as a "false negative")
+
+Large studies(>2000) may have small and often inconsequential effects but be statistically significant.
+https://research.usu.edu//irb/wp-content/uploads/sites/12/2015/08/A_Researchers_Guide_to_Power_Analysis_USU.pdf 
+
+```{r}
+#power analysis
+#alpha: 0.05
+#w = effect size : 0.2 (be able to detect a small effect)
+
+library("pwr")
+
+pwr.chisq.test(w=0.2, df = 7, sig.level = 0.05, power=0.9) #power analysis for df=7 as in weaning age
+
+```
+#Regression model, basic
+The authors get AIC 3099.964
+
+```{r}
+#lm(data$aggression_bin ~ data$Gender + data$Weaning_age + data$Breed_group)
+
+regrcats <- glm(data$aggression_bin ~ data$Age +data$Gender+ data$Weaning_age #+ data$Breed_group + data$Other_cats + data$Neuter_status + data$Extraversion_component + data$Outdoors+ data$Shyness_component
+                ,family=  "binomial"(link = "logit")
+                )
+
+summary(regrcats)
+
+```
+#Regression model, with breed
+They get AIC 3015.063
+
+```{r}
+#lm(data$aggression_bin ~ data$Gender + data$Weaning_age + data$Breed_group)
+
+regrcats <- glm(data$aggression_bin ~ data$Age +data$Gender + data$Weaning_age + data$Breed_group+ data$Neuter_status + data$Other_cats + data$Extraversion_component
+                ,family=  "binomial"(link = "logit")
+                )
+
+summary(regrcats)
+```
+
+# How to improve methodology
+
+- better analyze "not weaned" category: includes adult cats and very young kittens alike
+- explain how they transformed age into a binary
+- use appropriate test (not Chi-squared)
+
